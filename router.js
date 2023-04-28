@@ -15,7 +15,7 @@ class RouterNode {
         this.port = port;
         this.socket = dgram.createSocket('udp4');
         this.routerTable = routerTable;
-            this.ip = ip;
+        this.ip = ip;
     }
 
     start() {
@@ -56,7 +56,7 @@ class RouterNode {
 }
 
 const configFile = './.config';
-let port = process.argv[2];
+const port = process.argv[2];
 
 // Read the configuration file
 const configStr = fs.readFileSync(configFile).toString();
@@ -64,6 +64,7 @@ const routerTable = JSON.parse(configStr);
 
 const routers = []
 
+// Create and store routers
 for (const ip in routerTable) {
     // console.log(`${ip}:${port}`)
     routers.push(new RouterNode(ip, port, routerTable))
