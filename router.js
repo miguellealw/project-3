@@ -1,5 +1,7 @@
 const fs = require('fs');
 const dgram = require('dgram');
+const { throws } = require('assert');
+const { runInThisContext } = require('vm');
 
 const ip_to_letter_map = {
     "127.0.0.1": "A",
@@ -15,6 +17,7 @@ class RouterNode {
         this.port = port;
         this.socket = dgram.createSocket('udp4');
         this.routerTable = routerTable;
+        this.forwardingTable = {}
         this.ip = ip;
     }
 
@@ -22,36 +25,74 @@ class RouterNode {
         // Start listening on the specified port
         this.socket.bind(this.port, this.ip);
         console.log(`\n=== ${this.ip} listening on port ${this.port} ===\n`);
-
+        const neighbors = [];
         // Show routing table
         console.log(`Neighbors of ${ip_to_letter_map[this.ip]}:`);
-        for (const neighbor in this.routerTable[this.ip]) {
-            const cost = this.routerTable[this.ip][neighbor];
+        for (const neighbor in this.routerTable) {
+            const cost = this.routerTable[neighbor];
             // only show adjacent neighbors only
-            if (cost !== "inf") {
+            if (cost !== "inf" && cost != 0) {
+                neighbors.push(neighbor);
+                this.forwardingTable[neighbor] = neighbor; 
                 console.log(`  ${ip_to_letter_map[neighbor]}: ${cost}`);
             }
         }
+
+
+
+        console.log(this.routerTable);
+
+        for(const messageOf of neighbors) {
+            for(const messageTo of neighbors) {
+                this.sendUpdate(this.ip, messageOf, this.routerTable[messageTo], messageTo);
+            }
+        }
+
+
 
         // Set up message listener
         this.socket.on('message', (msg, rinfo) => {
             this.handleMessage(msg, rinfo);
         });
+
+        
+
     }
 
 
     handleMessage(msg, rinfo) {
-        console.log(`Received message from ${rinfo.address}:${rinfo.port}: ${msg}`);
-        // Handle the message and update the routing table as necessary
+        console.log(`Received message from ${ ip_to_letter_map[rinfo.address]} to ${ip_to_letter_map[this.ip]} ${msg}`);
+        const message = JSON.parse(msg);
+        const sender = rinfo.address;
+        const cost = message.cost;
+
+        const costToSender = this.routerTable[sender];
+        
+        const node = message.neighbor;
+        if (! Object.keys(this.forwardingTable).includes(node)) {
+            this.forwardingTable[node] = cost;
+        }
+        else {
+            if(this.forwardingTable[cost] > costToSender + cost) {
+                this.forwardingTable[cost] = costToSender + cost;
+                console.log("Updated cost.")
+
+                const messageOf = node;
+                for(const messageTo of neighbors) {
+                    this.sendUpdate(this.ip, messageOf, this.routerTable[messageTo], messageTo);
+                }
+                
+            }
+        }
     }
 
-    sendUpdate(router, neighbor, cost) {
-        // const update = JSON.stringify({
-        //   router: router,
-        //   neighbor: neighbor,
-        //   cost: cost
-        // });
-        // this.socket.send(update, this.port, this.routerTable[router][neighbor]);
+    sendUpdate(router, neighbor, cost, sendTo) {
+        const update = JSON.stringify({
+          router: router,
+          neighbor: neighbor,
+          cost: cost
+        });
+        this.socket.send(update, this.port, sendTo);
     }
 }
 
@@ -67,7 +108,7 @@ const routers = []
 // Create and store routers
 for (const ip in routerTable) {
     // console.log(`${ip}:${port}`)
-    routers.push(new RouterNode(ip, port, routerTable))
+    routers.push(new RouterNode(ip, port, routerTable[ip]))
     // increment port
     // port = (Number(port) + 1).toString()
 }
