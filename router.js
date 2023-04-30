@@ -17,7 +17,8 @@ class RouterNode {
         this.port = port;
         this.socket = dgram.createSocket('udp4');
         this.routerTable = routerTable;
-        this.forwardingTable = {}
+        this.forwardingTable = {};
+        this.neighbors = [];
         this.ip = ip;
     }
 
@@ -25,7 +26,7 @@ class RouterNode {
         // Start listening on the specified port
         this.socket.bind(this.port, this.ip);
         console.log(`\n=== ${this.ip} listening on port ${this.port} ===\n`);
-        const neighbors = [];
+        this.neighbors = [];
         // Show routing table
         console.log(`Neighbors of ${ip_to_letter_map[this.ip]}:`);
 
@@ -35,7 +36,7 @@ class RouterNode {
 
             // Only show adjacent neighbors that are reachable and not self
             if (cost !== "inf" && cost != 0) {
-                neighbors.push(neighbor);
+                this.neighbors.push(neighbor);
                 // Update forwarding table with neighbor's address
                 this.forwardingTable[neighbor] = neighbor; 
                 console.log(`  ${ip_to_letter_map[neighbor]}: ${cost}`);
@@ -45,8 +46,8 @@ class RouterNode {
         console.log(this.routerTable);
 
         // Send updates to all neighbors to inform them of this node's address
-        for(const messageOf of neighbors) {
-            for(const messageTo of neighbors) {
+        for(const messageOf of this.neighbors) {
+            for(const messageTo of this.neighbors) {
                 // Send an update to the neighbor
                 this.sendUpdate(this.ip, messageOf, this.routerTable[messageTo], messageTo);
             }
@@ -60,7 +61,7 @@ class RouterNode {
 
 
     handleMessage(msg, rinfo) {
-        console.log(`Received message from ${ ip_to_letter_map[rinfo.address]} to ${ip_to_letter_map[this.ip]} ${msg}`);
+        // sender says "I have a path from me to node" of cost cost.
         const message = JSON.parse(msg);
         const sender = rinfo.address;
         const cost = message.cost;
@@ -68,24 +69,29 @@ class RouterNode {
         const costToSender = this.routerTable[sender];
         
         const node = message.neighbor;
+        console.log(`Received message from ${ ip_to_letter_map[rinfo.address]} to ${ip_to_letter_map[this.ip]}, Cost to ${ip_to_letter_map[node]} is ${cost}`);
 
-        // If the forwarding table does not contain the node, add it
-        if (! Object.keys(this.forwardingTable).includes(node)) {
-            this.forwardingTable[node] = cost;
-        } else {
-            // If the forwarding table already contains the node, update the cost if it is lower
-            if(this.forwardingTable[cost] > costToSender + cost) {
-                this.forwardingTable[cost] = costToSender + cost;
-                console.log("Updated cost.")
+        
+        // Update the cost if it is lower
+        if(costToSender + cost < this.routerTable[node]) {
+            this.routerTable[node] = costToSender + cost;
+            this.forwardingTable[node] = sender;
 
-                // Send an update to all neighbors
-                const messageOf = node;
-                for(const messageTo of neighbors) {
-                    this.sendUpdate(this.ip, messageOf, this.routerTable[messageTo], messageTo);
-                }
-                
+            console.log("Updated cost.");
+
+            console.log(`Forwarding Table of ${ip_to_letter_map[this.ip]}:`);
+            console.log(this.forwardingTable);
+            console.log("Routing Table:");
+            console.log(this.routerTable);
+
+            // Send an update to all neighbors
+            const messageOf = node;
+            for(const messageTo of this.neighbors) {
+                this.sendUpdate(this.ip, messageOf, this.routerTable[messageTo], messageTo);
             }
+            
         }
+        
     }
 
     sendUpdate(router, neighbor, cost, sendTo) {
