@@ -79,7 +79,6 @@ class RouterNode {
 
         // Send updates to all neighbors to inform them of this node's address
         setTimeout(() => {
-
             for(const messageOf of this.neighbors) {
                 for(const messageTo of this.neighbors) {
                     // Send an update to the neighbor
@@ -112,7 +111,7 @@ class RouterNode {
         const message = JSON.parse(messageJSON);
         const isUpdate = message.isUpdate;
 
-        // Check if it is a router table update or a message sent after convergence (for test 1)
+        // Check if it is a router table update or a the test case 1 message 
         if(isUpdate) {
             // console.log(`Update ${this.ip}`)
             const sender = message.router;
@@ -132,14 +131,13 @@ class RouterNode {
                 console.log("Router table: ", prettifyRoutingTable(this.routerTable));
                 console.log("Forwarding table: ", prettifyForwardingTable(this.forwardingTable));
 
-                for(const neighbor of this.neighbors) {
-                    this.sendUpdate(node, this.routerTable[node], neighbor);
-                }
-
                 if (updates >= 27) {
                     console.log("\n=== CONVERGED ===\n")
                 }
 
+                for(const neighbor of this.neighbors) {
+                    this.sendUpdate(node, this.routerTable[node], neighbor);
+                }
             }
         } else {
             // It is a message after convergence
@@ -152,30 +150,14 @@ class RouterNode {
             // console.log(`Size of Payload: ${paylaodSize}`)
             console.log(`\n`)
 
-            // for(const neighbor of this.neighbors) {
-            //     this.sendMessageAfterConvergence(neighbor);
-            // }
-        }
-
-        // Converged
-        // console.log("UPDATES", updates)
-        if (updates >= 27) {
-            // for(const neighbor of this.neighbors) {
-            for(const neighbor in this.forwardingTable) {
-                const dest = this.forwardingTable[neighbor]
-                if (!visited.includes(this.ip)) {
-                    // this.sendMessageAfterConvergence(neighbor);
-                    this.sendMessageAfterConvergence(dest);
-                    visited.push(this.ip)
-                }
+            // Once router has been visted and printed test 1, then add to visited array.
+            // This will let the network know all routers have been visited and when to disconnect all the routers.
+            if (!visited.includes(ip)) { visited.push(ip) }
+            if(visited.length === 6) {
+                console.log("Stopping Routers...")
+                stopAllRouters()
             }
-
-            // console.log(`${this.ip}`, this.forwardingTable)
-
-            // stopAllRouters()
         }
-
-        
     }
 
     sendUpdate(neighbor, cost, sendTo) {
@@ -194,18 +176,16 @@ class RouterNode {
     }
 
     // sendMessageAfterConvergence(neighbor, sendTo) {
-    sendMessageAfterConvergence(sendTo, payloadSize=0) {
+    sendMessageAfterConvergence(sendTo) {
         if(this.isRunning) {
             const message = JSON.stringify({
                 routerName: ip_to_letter_map[this.ip],
                 ip: this.ip,
                 port: this.port,
-                utaId: "1001837419 and TODO",
+                utaId: "Miguel: 1001837419 | Aryan: 1001910691",
                 date: new Date().toUTCString(),
                 updates: updates,
                 isUpdate: false,
-                // payload: payload ??
-                // paylaodSize: payloadSize
             });
 
             this.socket.send(message, this.port, sendTo);
@@ -245,4 +225,13 @@ function stopAllRouters() {
         router.stop();
     })
 }
+
+// Test case 1 - broadcast to all routers the information
+setTimeout(() => {
+    routers.forEach(router => {
+        router.sendMessageAfterConvergence(this.ip);
+    })
+
+}, 200)
+
 
